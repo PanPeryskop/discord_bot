@@ -1,11 +1,8 @@
 import os
-import random
-import subprocess
-import textwrap
-
 from discord import app_commands, FFmpegPCMAudio
 import discord
 import asyncio
+import random
 
 from youtubesearchpython import VideosSearch
 
@@ -17,51 +14,6 @@ from dotenv import load_dotenv
 
 import spotipy
 from spotipy import SpotifyOAuth
-import wave
-
-from langchain.callbacks.manager import CallbackManager
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain_community.llms import LlamaCpp
-from langdetect import detect
-from deep_translator import GoogleTranslator
-
-
-MODEL_PATH = "models/Lexi-Llama-3-8B-Uncensored_Q8_0.gguf"
-
-
-def load_model() -> LlamaCpp:
-    callback = CallbackManager([StreamingStdOutCallbackHandler()])
-    n_gpu_layers = 40
-    n_batch = 512
-    Llama_model: LlamaCpp = LlamaCpp(
-        model_path=MODEL_PATH,
-        temperature=0.5,
-        max_tokens=2000,
-        n_gpu_layers=n_gpu_layers,
-        n_batch=n_batch,
-        top_p=1,
-        callback_manager=callback,
-        verbose=True
-    )
-
-    return Llama_model
-
-
-model = load_model()
-
-
-def transporter(prompt):
-    is_eng = detect(prompt) == 'en'
-    if not is_eng:
-        prompt = GoogleTranslator(source='auto', target='en').translate(prompt)
-    response = model.invoke(prompt)
-    output = response.replace("Answer: ", "", 1)
-    if not is_eng:
-        output = GoogleTranslator(source='en', target='pl').translate(output)
-    return output
-
-
-
 
 load_dotenv()
 
@@ -69,9 +21,6 @@ SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
 SPOTIPY_CLIENT_SECRET = os.getenv('SPOTIPY_CLIENT_SECRET')
 TOKEN = os.getenv('TOKEN')
 
-os.environ['SPOTIPY_CLIENT_ID'] = SPOTIPY_CLIENT_ID
-os.environ['SPOTIPY_CLIENT_SECRET'] = SPOTIPY_CLIENT_SECRET
-os.environ['SPOTIPY_REDIRECT_URI'] = 'http://localhost:3000/'
 client_id = SPOTIPY_CLIENT_ID
 client_secret = SPOTIPY_CLIENT_SECRET
 redirect_uri = 'http://localhost:3000/'
@@ -145,6 +94,12 @@ async def _play_next(interaction):
 
 
 async def _play(interaction: discord.Interaction, url: str):
+    global is_theme_playing
+
+    if is_theme_playing:
+        await interaction.response.send_message('A theme is currently playing. Please wait for it to finish.')
+        return
+    
     if interaction.response.is_done():
         await interaction.followup.send('Processing your request...')
     else:
@@ -254,44 +209,11 @@ async def help(interaction: discord.Interaction):
 /disconnect: Zatrzymuje odtwarzanie utworu i rozłącza bota z kanałem głosowym.  
 /checkqueue: Wyświetla liczbę utworów w kolejce.  
 /help: Wyświetla wszystkie dostępne komendy i ich opisy.
-/trigger: Wycisza użytkownika na losowy czas (w nieskończoność).
 /chat: Rozmawia z botem (llama 2 7b).
 /add_playlist: Dodaje playlistę do kolejki.
 /showqueue: Pokazuje kolejke utworości.
 /ficzur: Ficzurin'.```"""
     await interaction.response.send_message(message)
-
-
-@tree.command(
-    name="trigger",
-    description="My first application Command",
-)
-async def trigger(interaction, user_name: str):
-    if interaction.guild is not None:
-        await interaction.response.send_message(f'Triggering {user_name}...')
-        guild = interaction.guild
-
-        member = guild.get_member_named(user_name)
-
-        if not member:
-            await interaction.response.send_message('Member with that name was not found.')
-            return
-        if member.voice is None:
-            await interaction.response.send_message('User is not connected to a voice channel.')
-            return
-
-        while not os.path.isfile('stop'):
-            timeright = random.randint(1, 20)
-            timeleft = random.randint(1, 20)
-            print(f'Muting {member.name} for {timeright} seconds')
-            await member.edit(deafen=True)
-            await asyncio.sleep(timeright)
-            print(f'Unmuting {member.name} for {timeleft} seconds')
-            await member.edit(deafen=False)
-            await asyncio.sleep(timeleft)
-
-    else:
-        await interaction.response.send_message('This command is not available in private messages.')
 
 
 @tree.command(name='showqueue', description='To show the song queue')
@@ -305,18 +227,6 @@ async def show_queue(interaction: discord.Interaction):
             for j, song in enumerate(song_queue[i:i + 30], start=i + 1):
                 message += f'{j}. {song}\n'
             await interaction.followup.send(message)
-
-
-@tree.command(
-    name="chat",
-    description="Caht with the bot",
-)
-async def chat(interaction, message: str):
-    await interaction.response.send_message('Processing your request...')
-    response = transporter(message)
-    chunks = textwrap.wrap(response, width=2000, break_long_words=False)
-    for chunk in chunks:
-        await interaction.followup.send(chunk)
 
 
 @tree.command(name='ficzur', description='Ficzuring')
@@ -428,12 +338,76 @@ async def play_my(interaction: discord.Interaction):
         await interaction.response.send_message('No audio file found.')
 
 
+theme_queue = []
+is_theme_playing = False
+
+@tree.command(name='theme', description='Play a theme from a predefined list')
+@app_commands.choices(theme=[
+    app_commands.Choice(name='fent', value='fent'),
+    app_commands.Choice(name='miodowanie', value='miodowanie'),
+    app_commands.Choice(name='speegarage', value='speegarage'),
+    app_commands.Choice(name='sebol', value='sebol')
+])
+async def theme(interaction: discord.Interaction, theme: app_commands.Choice[str]):
+    global is_theme_playing, theme_queue
+    if is_theme_playing:
+        await interaction.response.send_message('A theme is already playing.')
+        return
+    is_theme_playing = True
+    theme_folder = {
+        'fent': 'C:/Users/stgad/Music/Fent',
+        'miodowanie': 'C:/Users/stgad/Music/Poldon Crusin',
+        'speegarage': 'C:/Users/stgad/Music/Speedgarae',
+        'sebol': 'C:/Users/stgad/Music/sebol'
+    }
+    folder = theme_folder[theme.value]
+    songs = [os.path.join(folder, file) for file in os.listdir(folder) if file.endswith('.mp3')]
+    random.shuffle(songs)
+    theme_queue.extend(songs)
+    await interaction.response.send_message(f'Added {theme.value} theme songs to the queue.')
+    await play_next_theme_song(interaction)
+
+async def play_next_theme_song(interaction):
+    global is_theme_playing, theme_queue
+    if len(theme_queue) > 0:
+        song = theme_queue.pop(0)
+        guild = interaction.guild
+        member = guild.get_member(interaction.user.id)
+        channel = member.voice.channel
+
+        if guild.voice_client is None:
+            voice_channel = await channel.connect()
+        else:
+            voice_channel = guild.voice_client
+            if voice_channel.is_playing():
+                voice_channel.stop()
+
+        voice_channel.play(discord.FFmpegPCMAudio(song), after=lambda e: client.loop.create_task(play_next_theme_song(interaction)))
+        voice_channel.source = discord.PCMVolumeTransformer(voice_channel.source)
+        voice_channel.source.volume = 0.5
+    else:
+        is_theme_playing = False
+
+@tree.command(name='stop_theme', description='Stop the current theme and clear the theme queue')
+async def stop_theme(interaction: discord.Interaction):
+    global is_theme_playing, theme_queue
+    guild = interaction.guild
+    voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
+    theme_queue = []
+    if voice_client and voice_client.is_playing():
+        voice_client.stop()
+    is_theme_playing = False
+    await interaction.response.send_message('Stopped the theme and cleared the theme queue.')
+
+
 @client.event
 async def on_ready():
     for guild in client.guilds:
         print(f'{client.user} has connected to {guild.name}!')
         await tree.sync()
     print("Ready!")
+
+
 
 
 client.run(TOKEN)
