@@ -416,6 +416,15 @@ async def stop_theme(interaction: discord.Interaction):
     is_theme_playing = False
     await interaction.response.send_message('Stopped the theme and cleared the theme queue.')
 
+@tree.command(name='stop', description='Stop all')
+async def stop(interaction: discord.Interaction):
+    guild = interaction.guild
+    voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
+    if voice_client and voice_client.is_playing():
+        voice_client.stop()
+    song_queue.clear()
+    await interaction.response.send_message('Stopped all.')
+
 @client.event
 async def on_ready():
     for guild in client.guilds:
