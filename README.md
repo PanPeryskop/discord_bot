@@ -1,6 +1,6 @@
 # Discord Bot
 
-## Table of Contents
+## Shortcuts
 
 - [Description](#description)
 - [Features](#features)
