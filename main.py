@@ -100,6 +100,10 @@ def spot_to_yt(url):
 @tree.command(name='add_playlist', description='To add a Spotify playlist to the queue')
 async def add_playlist(interaction: discord.Interaction, url: str):
     await interaction.response.send_message('Processing your request...')
+    await _add_playlist(interaction, url)
+    
+
+async def _add_playlist(interaction: discord.Interaction, url: str):
     try:
         if url.startswith('https://open.spotify.com/playlist/'):
             playlist_id = url.split('/')[-1].split('?')[0] if '?' in url else url.split('/')[-1]
@@ -138,14 +142,14 @@ async def _play_next(interaction: discord.Interaction, has_deferred: bool = True
         await _play(interaction, url, has_deferred=has_deferred)
 
 async def _play(interaction: discord.Interaction, url: str, has_deferred: bool = False) -> None:
-    global is_theme_playing
+    # global is_theme_playing
 
     if not has_deferred:
         await interaction.response.defer()
 
-    if is_theme_playing:
-        await interaction.followup.send('A theme is currently playing. Please wait.')
-        return
+    # if is_theme_playing:
+    #     await interaction.followup.send('A theme is currently playing. Please wait.')
+    #     return
 
     guild = interaction.guild
     member = guild.get_member(interaction.user.id)
@@ -162,7 +166,7 @@ async def _play(interaction: discord.Interaction, url: str, has_deferred: bool =
 
     try:
         if 'playlist' in url:
-            await add_playlist(interaction, url)
+            await _add_playlist(interaction, url)
             return
 
 
@@ -245,23 +249,6 @@ async def check_queue(interaction: discord.Interaction):
     else:
         await interaction.response.send_message(f'The song queue has {len(song_queue)} songs.')
 
-@tree.command(name='help', description='Display all available commands and their descriptions')
-async def help(interaction: discord.Interaction):
-    message = """```
-/toqueue: Add a song to the queue
-/clearqueue: Clear the song queue
-/play: Play a song. If another song is currently playing, it will be added to queue
-/skip: Skip the current song
-/disconnect: Stop playback and disconnect the bot from voice channel
-/checkqueue: Display the number of songs in queue
-/help: Display all available commands and their descriptions
-/add_playlist: Add a Spotify playlist to queue
-/showqueue: Show the current song queue
-/ficzur: Mix two songs together
-/play_my: Play your last uploaded audio file
-/theme: Play a theme from predefined list
-/stop_theme: Stop the current theme and clear theme queue```"""
-    await interaction.response.send_message(message)
 
 @tree.command(name='showqueue', description='To show the song queue')
 async def show_queue(interaction: discord.Interaction):
@@ -339,13 +326,41 @@ async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
 @client.event
 async def on_message(message):
     global last_audio_file
+    if message.author.bot:
+        return
+        
     if message.attachments:
+        os.makedirs("./songs", exist_ok=True)
+        
         for attachment in message.attachments:
             if attachment.filename.endswith(('.mp3', '.wav')):
-                await attachment.save(f"./songs/{attachment.filename}")
-                last_audio_file = f"./songs/{attachment.filename}"
-                break
-        logger.info(f"Last audio file: {last_audio_file}")
+                if attachment.size > 25 * 1024 * 1024:
+                    await message.channel.send("File too large! Maximum size is 25MB.")
+                    continue
+                    
+                try:
+                    file_path = f"./songs/{attachment.filename}"
+                    await attachment.save(file_path)
+                    last_audio_file = file_path
+                    
+                    await message.add_reaction('🐗')                      
+
+                    boar_messages = [
+                        f"🐗 Knur has captured **{attachment.filename}**",
+                        f"🐗 Knur's mighty ears detected new sound: **{attachment.filename}**!",
+                        f"🐗 The Beast has added **{attachment.filename}** to his collection!",
+                        f"🐗 Knur has detected new banger: **{attachment.filename}**!"
+                    ]
+                    await message.channel.send(random.choice(boar_messages))
+                    
+                    logger.info(f"Saved audio file: {file_path}")
+                    break
+                    
+                except Exception as e:
+                    logger.error(f"Failed to save audio file: {e}")
+                    await message.channel.send("Failed to save audio file!")
+                    await message.add_reaction('❌')
+
 
 @tree.command(name='play_my', description='Play a user\'s audio file')
 async def play_my(interaction: discord.Interaction):
