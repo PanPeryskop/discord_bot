@@ -683,15 +683,35 @@ async def delete_messages(interaction: discord.Interaction, count: int):
         await interaction.response.send_message("You don't have permission to use this command!", ephemeral=True)
         return
 
-    await interaction.response.defer()
+    if count <= 0:
+        await interaction.response.send_message("Please provide a positive number of messages to delete.", ephemeral=True)
+        return
+
+    await interaction.response.send_message(f"Starting deletion of {count} messages...", ephemeral=True)
     
     channel = interaction.channel
     deleted = 0
-    async for message in channel.history(limit=count):
-        await message.delete()
-        deleted += 1
+    failed = 0
     
-    await interaction.followup.send(f'Deleted {deleted} messages.')
+    try:
+        async for message in channel.history(limit=count):
+            try:
+                await message.delete()
+                deleted += 1
+            except Exception as e:
+                logger.error(f"Failed to delete message: {e}")
+                failed += 1
+                
+                    
+        final_message = f"Completed! Deleted {deleted} messages."
+        if failed > 0:
+            final_message += f" Failed to delete {failed} messages."
+            
+        await interaction.channel.send(final_message, delete_after=10)
+        
+    except Exception as e:
+        logger.error(f"Error in delete_messages: {e}")
+        await interaction.channel.send("An error occurred while deleting messages.", delete_after=10)
 
 
 client.run(TOKEN)
