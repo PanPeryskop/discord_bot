@@ -47,6 +47,7 @@ theme_queue = []
 is_theme_playing = False
 last_audio_file = None
 
+
 def download_audio(url, filename):
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -62,6 +63,7 @@ def download_audio(url, filename):
             ydl.download([url])
     except Exception as e:
         logger.error(f"Error downloading audio: {e}")
+
 
 def spot_to_yt(url):
     try:
@@ -97,6 +99,7 @@ def spot_to_yt(url):
         logger.error(f"Error converting Spotify to YouTube: {e}")
     return None
 
+
 @tree.command(name='add_playlist', description='To add a Spotify playlist to the queue')
 async def add_playlist(interaction: discord.Interaction, url: str):
     await interaction.response.send_message('Processing your request...')
@@ -125,21 +128,25 @@ async def _add_playlist(interaction: discord.Interaction, url: str):
         logger.error(f"Error adding playlist: {e}")
         await interaction.followup.send('An error occurred while processing your request.')
 
+
 @tree.command(name='toqueue', description='To add song to queue')
 async def toqueue(interaction: discord.Interaction, url: str):
     song_queue.append(url)
     logger.info(f"Song added to queue: {url}")
     await interaction.response.send_message('Song added to queue.')
 
+
 @tree.command(name='clearqueue', description='To clear the song queue')
 async def clearqueue(interaction: discord.Interaction):
     song_queue.clear()
     await interaction.response.send_message('Song queue cleared.')
 
+
 async def _play_next(interaction: discord.Interaction, has_deferred: bool = True) -> None:
     if song_queue:
         url = song_queue.pop(0)
         await _play(interaction, url, has_deferred=has_deferred)
+
 
 async def _play(interaction: discord.Interaction, url: str, has_deferred: bool = False) -> None:
     # global is_theme_playing
@@ -210,6 +217,7 @@ async def _play(interaction: discord.Interaction, url: str, has_deferred: bool =
         logger.error(f"Error playing song: {e}")
         await interaction.followup.send('An error occurred while processing your request.')
 
+
 def get_song_name(url):
     if 'youtube' in url or 'youtu.be' in url:
         video_info = VideosSearch(url, limit=1).result()
@@ -223,6 +231,7 @@ def get_song_name(url):
 play_next = tree.command(name='play_next', description='To play next song')(_play_next)
 play = tree.command(name='play', description='To play song')(_play)
 
+
 @tree.command(name='skip', description='To skip song')
 async def skip(interaction: discord.Interaction):
     guild = interaction.guild
@@ -235,12 +244,14 @@ async def skip(interaction: discord.Interaction):
         voice_client.stop()
         await interaction.response.send_message("Stopped the song.")
 
+
 @tree.command(name='disconnect', description='To stop song and disconnect from voice channel')
 async def disconnect(interaction: discord.Interaction):
     guild = interaction.guild
     song_queue.clear()
     await interaction.response.send_message('Disconnecting from voice channel.')
     await interaction.guild.voice_client.disconnect()
+
 
 @tree.command(name='checkqueue', description='To check the song queue')
 async def check_queue(interaction: discord.Interaction):
@@ -261,6 +272,7 @@ async def show_queue(interaction: discord.Interaction):
             for j, song in enumerate(song_queue[i:i + 30], start=i + 1):
                 message += f'{j}. {song}\n'
             await interaction.followup.send(message)
+
 
 @tree.command(name='ficzur', description='Ficzuring')
 async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
@@ -323,6 +335,7 @@ async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
         logger.error(f"Error in ficzur: {e}")
         await interaction.edit_original_response(content='An error occurred while processing your request.')
 
+
 @client.event
 async def on_message(message):
     global last_audio_file
@@ -384,6 +397,7 @@ async def play_my(interaction: discord.Interaction):
     else:
         await interaction.response.send_message('No audio file found.')
 
+
 @tree.command(name='theme', description='Play a theme from a predefined list')
 @app_commands.choices(theme=[
     app_commands.Choice(name='fent', value='fent'),
@@ -409,6 +423,7 @@ async def theme(interaction: discord.Interaction, theme: app_commands.Choice[str
     theme_queue.extend(songs)
     await interaction.response.send_message(f'Added {theme.value} theme songs to the queue.')
     await play_next_theme_song(interaction)
+
 
 async def play_next_theme_song(interaction):
     global is_theme_playing, theme_queue
@@ -439,6 +454,7 @@ async def play_next_theme_song(interaction):
     else:
         is_theme_playing = False
 
+
 @tree.command(name='stop_theme', description='Stop the current theme and clear the theme queue')
 async def stop_theme(interaction: discord.Interaction):
     global is_theme_playing, theme_queue
@@ -458,6 +474,7 @@ async def stop(interaction: discord.Interaction):
         voice_client.stop()
     song_queue.clear()
     await interaction.response.send_message('Stopped all.')
+
 
 @client.event
 async def on_ready():
