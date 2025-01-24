@@ -17,6 +17,9 @@ from urllib.parse import quote
 import google.generativeai as genai
 from datetime import datetime
 from genres import Genres
+import aiohttp
+import re
+from datetime import datetime
 
 
 load_dotenv()
@@ -601,5 +604,94 @@ async def stop_random(interaction: discord.Interaction):
         voice_client.stop()
     is_random_playing = False
     await interaction.response.send_message('Stopped random music playback.')
+
+
+def sanitize_filename(filename):
+    return re.sub(r'[<>:"/\\|?*]', '_', filename)
+
+@tree.command(name='download_channel', description='Download all attachments from channel')
+async def download_attachments(interaction: discord.Interaction):
+
+    if not interaction.user.guild_permissions.administrator and not interaction.user.guild_permissions.manage_messages:
+        await interaction.response.send_message("You don't have permission to use this command!", ephemeral=True)
+        return
+
+    await interaction.response.defer()
+    
+    today = datetime.now().strftime('%Y-%m-%d')
+    server_name = sanitize_filename(interaction.guild.name)
+    channel_name = sanitize_filename(interaction.channel.name)
+    
+    downloads_dir = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), 
+        'downloads',
+        server_name,
+        channel_name,
+        today
+    )
+    
+    if not os.path.exists(downloads_dir):
+        os.makedirs(downloads_dir)
+    
+    channel = interaction.channel
+    downloaded = 0
+    failed = 0
+    total_attachments = 0
+    
+    async for message in channel.history(limit=None):
+        total_attachments += len(message.attachments)
+    
+    if total_attachments == 0:
+        await interaction.followup.send("No attachments found in this channel!")
+        return
+
+    status_message = await interaction.followup.send(f'Starting download of {total_attachments} attachments...')
+    
+    async with aiohttp.ClientSession() as session:
+        async for message in channel.history(limit=None):
+            if message.attachments:
+                for attachment in message.attachments:
+                    try:
+                        filename = os.path.join(downloads_dir, sanitize_filename(attachment.filename))
+                        
+                        async with session.get(attachment.url) as resp:
+                            if resp.status == 200:
+                                with open(filename, 'wb') as f:
+                                    f.write(await resp.read())
+                                    downloaded += 1
+                                    
+                                if downloaded % 10 == 0:  
+                                    await status_message.edit(content=f'Progress: {downloaded}/{total_attachments} files downloaded...')
+                            else:
+                                failed += 1
+                    except Exception as e:
+                        logger.error(f"Failed to download {attachment.filename}: {e}")
+                        failed += 1
+    
+    final_message = (
+        f'Download complete!\n'
+        f'Location: {downloads_dir}\n'
+        f'Successfully downloaded: {downloaded}\n'
+        f'Failed: {failed}'
+    )
+    await status_message.edit(content=final_message)
+
+
+@tree.command(name='delete_messages', description='Delete provided number of messages from channel')
+async def delete_messages(interaction: discord.Interaction, count: int):
+    if not interaction.user.guild_permissions.administrator and not interaction.user.guild_permissions.manage_messages:
+        await interaction.response.send_message("You don't have permission to use this command!", ephemeral=True)
+        return
+
+    await interaction.response.defer()
+    
+    channel = interaction.channel
+    deleted = 0
+    async for message in channel.history(limit=count):
+        await message.delete()
+        deleted += 1
+    
+    await interaction.followup.send(f'Deleted {deleted} messages.')
+
 
 client.run(TOKEN)
