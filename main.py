@@ -16,6 +16,7 @@ from spotipy import SpotifyOAuth
 from urllib.parse import quote
 import google.generativeai as genai
 from datetime import datetime
+from genres import Genres
 
 
 load_dotenv()
@@ -449,7 +450,8 @@ async def play_my(interaction: discord.Interaction):
     app_commands.Choice(name='fent', value='fent'),
     app_commands.Choice(name='miodowanie', value='miodowanie'),
     app_commands.Choice(name='speegarage', value='speegarage'),
-    app_commands.Choice(name='sebol', value='sebol')
+    app_commands.Choice(name='sebol', value='sebol'),
+    app_commands.Choice(name='yabujin', value='yabujin'),
 ])
 async def theme(interaction: discord.Interaction, theme: app_commands.Choice[str]):
     global is_theme_playing, theme_queue
@@ -461,7 +463,8 @@ async def theme(interaction: discord.Interaction, theme: app_commands.Choice[str
         'fent': 'C:/Users/stgad/Music/Fent',
         'miodowanie': 'C:/Users/stgad/Music/Poldon Crusin',
         'speegarage': 'C:/Users/stgad/Music/Speedgarae',
-        'sebol': 'C:/Users/stgad/Music/sebol'
+        'sebol': 'C:/Users/stgad/Music/sebol',
+        'yabujin': 'C:/Users/stgad/Music/yabujin'
     }
     folder = theme_folder[theme.value]
     songs = [os.path.join(folder, file) for file in os.listdir(folder) if file.endswith('.mp3')]
@@ -530,5 +533,73 @@ async def on_ready():
     logger.info("Ready!")
 
 
+is_random_playing = False
+
+@tree.command(name='play_random', description='Play randomly generated songs')
+async def play_random(interaction: discord.Interaction):
+    global is_random_playing
+    
+    if is_random_playing:
+        await interaction.response.send_message('Random music is already playing.')
+        return
+
+    is_random_playing = True
+    await play_next_random(interaction)
+    await interaction.response.send_message('Starting random music playback.')
+
+async def play_next_random(interaction):
+    global is_random_playing
+    
+    if not is_random_playing:
+        return
+        
+    try:
+        genres = Genres(sp)
+        track_url = genres.get_song()
+        
+        if track_url:
+            guild = interaction.guild
+            
+            track_url = track_url.replace('spotify:track:', 'https://open.spotify.com/track/')
+
+            yt_url = spot_to_yt(track_url)
+            if yt_url:
+                download_audio(yt_url, 'temp_audio')
+                audio_file = 'audios/temp_audio.mp3'
+                song_name = get_song_name(yt_url)
+                
+                if guild.voice_client is None:
+                    member = guild.get_member(interaction.user.id)
+                    channel = member.voice.channel
+                    voice_client = await channel.connect()
+                else:
+                    voice_client = guild.voice_client
+                    if voice_client.is_playing():
+                        voice_client.stop()
+                
+                voice_client.play(
+                    discord.FFmpegPCMAudio(audio_file),
+                    after=lambda e: asyncio.run_coroutine_threadsafe(play_next_random(interaction), client.loop)
+                )
+                voice_client.source = discord.PCMVolumeTransformer(voice_client.source, 0.5)
+                
+                try:
+                    await interaction.channel.send(f'Now playing: {song_name}')
+                except:
+                    pass
+            
+    except Exception as e:
+        logger.error(f"Error in play_next_random: {e}")
+        is_random_playing = False
+
+@tree.command(name='stop_random', description='Stop random music playback')
+async def stop_random(interaction: discord.Interaction):
+    global is_random_playing
+    guild = interaction.guild
+    voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
+    if voice_client and voice_client.is_playing():
+        voice_client.stop()
+    is_random_playing = False
+    await interaction.response.send_message('Stopped random music playback.')
 
 client.run(TOKEN)
