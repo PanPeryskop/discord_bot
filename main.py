@@ -108,7 +108,13 @@ async def add_playlist(interaction: discord.Interaction, url: str):
                 song = item['track']
                 song_url = 'https://open.spotify.com/track/' + song['id']
                 song_queue.append(song_url)
+            
             await interaction.followup.send('Songs from playlist added to queue.')
+
+            guild = interaction.guild
+            voice_channel = guild.voice_client
+            if not voice_channel or not voice_channel.is_playing():
+                await _play_next(interaction, has_deferred=True)
         else:
             await interaction.followup.send('Invalid URL. Please provide a valid Spotify playlist URL.')
     except Exception as e:
@@ -155,6 +161,11 @@ async def _play(interaction: discord.Interaction, url: str, has_deferred: bool =
             return
 
     try:
+        if 'playlist' in url:
+            await add_playlist(interaction, url)
+            return
+
+
         if url.startswith(('https://www.youtube.com/watch?v=', 'https://youtu.be/', 'https://soundcloud.com/')):
             download_audio(url, 'temp_audio')
             audio_file = 'audios/temp_audio.mp3'
@@ -394,6 +405,14 @@ async def play_next_theme_song(interaction):
 
         if guild.voice_client is None:
             voice_channel = await channel.connect()
+            intro_path = {
+                1: "C:/Users/stgad/Music/Knur intro/intro 1.mp3",
+                2: "C:/Users/stgad/Music/Knur intro/intro 2.mp3",
+            }
+            if random.random() < 0.5:
+                voice_channel.play(discord.FFmpegPCMAudio(intro_path[1]), after=lambda e: client.loop.create_task(play_next_theme_song(interaction)))
+            else:
+                voice_channel.play(discord.FFmpegPCMAudio(intro_path[2]), after=lambda e: client.loop.create_task(play_next_theme_song(interaction)))
         else:
             voice_channel = guild.voice_client
             if voice_channel.is_playing():
