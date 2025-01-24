@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 import spotipy
 from spotipy import SpotifyOAuth
 from urllib.parse import quote
+import google.generativeai as genai
+from datetime import datetime
 
 
 load_dotenv()
@@ -24,6 +26,12 @@ logger = logging.getLogger(__name__)
 SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
 SPOTIPY_CLIENT_SECRET = os.getenv('SPOTIPY_CLIENT_SECRET')
 TOKEN = os.getenv('TOKEN')
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+
+genai.configure(api_key=GOOGLE_API_KEY)
+model = genai.GenerativeModel("gemini-1.5-flash")
+
+conversation_memory = {}
 
 client_id = SPOTIPY_CLIENT_ID
 client_secret = SPOTIPY_CLIENT_SECRET
@@ -46,6 +54,44 @@ song_queue = []
 theme_queue = []
 is_theme_playing = False
 last_audio_file = None
+
+
+@tree.command(name='talk_with_knur', description='Chat with the mighty Boar!')
+async def talk_with_knur(interaction: discord.Interaction, message: str):
+    user_id = str(interaction.user.id)
+    
+    try:
+        await interaction.response.defer()
+        
+        
+        if user_id not in conversation_memory:
+            conversation_memory[user_id] = model.start_chat(history=[])
+            
+            conversation_memory[user_id].send_message(
+                "You are a mighty wild boar named Knur. You speak in a bold, powerful way. "
+                "Your music taste is eclectic, you enjoy a wide range of genres."
+                "You often use phrases like 'OINK!', 'GRUNT!', when speaking polish you use 'Chrum!' 'RAAAAUUUUR!'. "
+                "You're proud, strong and sometimes sarcastic. Keep responses under 2000 characters."
+                "If chat is in polish speak in polish, if in english speak in english. If in polish speak 'CHRUM!' instead of 'GRUNT!'"
+            )
+        
+        
+        response = conversation_memory[user_id].send_message(message)
+        
+        
+        formatted_response = f"🐗 {response.text}"
+        
+        
+        if len(formatted_response) > 2000:
+            parts = [formatted_response[i:i+1999] for i in range(0, len(formatted_response), 1999)]
+            for part in parts:
+                await interaction.followup.send(part)
+        else:
+            await interaction.followup.send(formatted_response)
+            
+    except Exception as e:
+        logger.error(f"Error in talk_with_knur: {e}")
+        await interaction.followup.send("🐗 *GRUNT* Something went wrong with my brain...")
 
 
 def download_audio(url, filename):
@@ -482,5 +528,7 @@ async def on_ready():
         logger.info(f'{client.user} has connected to {guild.name}!')
         await tree.sync()
     logger.info("Ready!")
+
+
 
 client.run(TOKEN)
