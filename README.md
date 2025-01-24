@@ -1,42 +1,87 @@
+# Discord Bot
 
-# Bao Bao Long
+## Table of Contents
+
+- [Description](#description)
+- [Features](#features)
+- [Installation](#installation)
+- [Commands](#commands)
+
 
 ## Description
 
-This is a Discord bot that allows users to play audio files in a voice channel. It supports playing audio files from YouTube and Spotify URLs, as well as user-uploaded audio files and some ficzurs.
+**Bao Bao Long** is a Discord bot that lets users play music in voice channels without any trouble. The bot can stream music from [YouTube](https://youtube.com) and [Spotify](https://spotify.com), [SoundCoud]('https://soundcloud.com') , play audio files uploaded by users, and has other interactive features.
+
+## Features
+
+- **Music Playback**: Play music from YouTube and Spotify links.
+- **Queue Management**: Add songs to a queue, view the current queue, and clear it.
+- **Random Playback**: Play random songs.
+- **Playlist Support**: Add entire playlists to the queue. (Spotify)
+- **User Audio Files**: Play audio files that users upload via private messages.
+- **Administrative Controls**: Manage the bot using specific commands. (Deleting provided number os messages from voice channel and downloading all attachments from channel)
+- **Talk With Bot**: You can talk with KNUR!
 
 ## Installation
 
-1. Clone this repository to your local machine.
-2. Install the required Python packages by running `pip install -r requirements.txt` in your terminal.
-3. Create a `.env` file in the root directory of the project, and add your Discord bot token, Spotify client ID, and Spotify client secret.
+1. **Clone the Repository:**
+    ```bash
+    git clone https://github.com/PanPeryskop/discord_bot
+    cd discord_bot
+    ```
 
-```env
-SPOTIPY_CLIENT_ID=your_spotify_client_id
-SPOTIPY_CLIENT_SECRET=your_spotify_client_secret
-TOKEN=your_discord_bot_token
+2. **Create a Virtual Environment (Optional but Recommended):**
+    ```bash
+    python -m venv .venv
+    .venv\Scripts\activate 
+    ```
+
+3. **Install Required Python Packages:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4. **Set Up Environment Variables:**
+    - Create a ```.env``` file in the root directory of the project.
+    - Add the following variables:
+        ```env
+        SPOTIPY_CLIENT_ID=your_spotify_client_id
+        SPOTIPY_CLIENT_SECRET=your_spotify_client_secret
+        TOKEN=your_discord_bot_token
+        GOOGLE_API_KEY=your_google_api_key
+        ```
+    - **SPOTIPY_CLIENT_ID**: Your Spotify Client ID.
+    - **SPOTIPY_CLIENT_SECRET**: Your Spotify Client Secret.
+    - **TOKEN**: Your Discord Bot Token.
+    - **GOOGLE_API_KEY**: Your Google API Key for generative services.
+
+5. **Run the Bot:**
+    ```bash
+    python main.py
+    ```
+
+6. Ensure all dependencies listed in [requirements.txt](https://github.com/PanPeryskop/discord_bot/blob/main/requirements.txt) are installed. If you introduce new features or dependencies, update this file accordingly:
+```bash
+pip install -r requirements.txt
 ```
-
-4. Replace `your_spotify_client_id`, `your_spotify_client_secret`, and `your_discord_bot_token` with your actual Spotify client ID, Spotify client secret, and Discord bot token.
-
-## Usage
-
-1. Run the bot by executing `python main.py` in your terminal.
 
 ## Commands
 
-1. `/toqueue`: Adds a song to the queue.
-2. `/clearqueue`: Clears the song queue.
-3. `/play`: Plays a song. If another song is currently playing, it will be stopped.
-4. `/skip`: Stops the current song or skips to the next one.
-5. `/disconnect`: Stops the song and disconnects the bot from the voice channel.
-6. `/checkqueue`: Displays the number of songs in the queue.
-7. `/help`: Displays all available commands and their descriptions.
-8. `/trigger`: Mutes a user for a random time (indefinitely).
-9. `/chat`: Chat with the bot.
-10. `/add_playlist`: Adds a playlist to the queue.
-11. `/showqueue`: Shows the song queue.
-12. `/ficzur`: Ficzurin'.
-13. `/play_my`: Plays a user's audio file. (Song needs to be send to bot in private message)
-
-Remember to use these commands with the appropriate parameters where necessary.
+1. **/toqueue**: Add a song to the queue.
+2. **/clearqueue**: Clear the song queue.
+3. **/play**: Play a song from a URL.
+4. **/skip**: Skip the current song.
+5. **/disconnect**: Stop the song and disconnect from the voice channel.
+6. **/checkqueue**: Check the number of songs in the queue.
+7. **/showqueue**: Show the list of songs in the queue.
+8. **/chat**: Chat with the bot.
+9. **/add_playlist**: Add a Spotify playlist to the queue.
+10. **/ficzur**: Play two songs simultaneously.
+11. **/play_my**: Play a user's uploaded audio file.
+12. **/play_random**: Play randomly generated songs.
+13. **/stop_random**: Stop random music playback.
+14. **/theme**: Play a theme from a predefined list.
+15. **/stop_theme**: Stop the current theme and clear the theme queue.
+16. **/stop**: Stop all music playback.
+17. **/download_channel**: Download all attachments from the channel.
+18. **/delete_messages**: Delete a specified number of messages from the channel.
