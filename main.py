@@ -20,6 +20,7 @@ from genres import Genres
 import aiohttp
 import re
 from datetime import datetime
+from audio_gen import AudioGenerator
 
 
 load_dotenv()
@@ -58,6 +59,8 @@ song_queue = []
 theme_queue = []
 is_theme_playing = False
 last_audio_file = None
+
+generator = AudioGenerator()
 
 
 async def guild_only(interaction: discord.Interaction) -> bool:
@@ -775,6 +778,7 @@ async def delete_messages(interaction: discord.Interaction, count: int):
             try:
                 await message.delete()
                 deleted += 1
+                await asyncio.sleep(0.76)
             except Exception as e:
                 logger.error(f"Failed to delete message: {e}")
                 failed += 1
@@ -790,5 +794,53 @@ async def delete_messages(interaction: discord.Interaction, count: int):
         logger.error(f"Error in delete_messages: {e}")
         await interaction.channel.send("An error occurred while deleting messages.", delete_after=10)
 
+
+@tree.command(name='let_knur_cook', description='Let Knur speak or sing!')
+@app_commands.choices(mode=[
+    app_commands.Choice(name='speak', value='speak'),
+    app_commands.Choice(name='sing', value='sing')
+])
+async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Choice[str], text: str):
+    await interaction.response.defer()
+    
+    try:
+        filename = f"knur_{mode.value}.wav"
+        
+        if mode.value == 'speak':
+            audio_path = generator.generate_speech(text, filename)
+        else:
+            audio_path = generator.generate_singing(text, filename)
+            
+        if not audio_path:
+            await interaction.followup.send("🐗 *GRUNT* Something went wrong...")
+            return
+
+        if interaction.guild and interaction.user.voice:
+            guild = interaction.guild
+            voice_channel = interaction.user.voice.channel
+            
+            if guild.voice_client is None:
+                voice_client = await voice_channel.connect()
+            else:
+                voice_client = guild.voice_client
+                if voice_client.is_playing():
+                    voice_client.stop()
+                    
+            voice_client.play(discord.FFmpegPCMAudio(audio_path))
+            voice_client.source = discord.PCMVolumeTransformer(voice_client.source)
+            voice_client.source.volume = 0.7
+            
+        with open(audio_path, 'rb') as f:
+            file = discord.File(f, filename=filename)
+            await interaction.followup.send(
+                content=f"🐗 Knur is {mode.value}ing: {text}",
+                file=file
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in let_knur_cook: {str(e)}")
+        await interaction.followup.send(f"Error: {str(e)}")
+
+    
 
 client.run(TOKEN)
