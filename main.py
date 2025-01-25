@@ -767,7 +767,7 @@ async def delete_messages(interaction: discord.Interaction, count: int):
         await interaction.response.send_message("Please provide a positive number of messages to delete.", ephemeral=True)
         return
 
-    await interaction.response.send_message(f"Starting deletion of {count} messages...", ephemeral=True)
+    await interaction.response.send_message(f"Starting deletion of {count} messages...", ephemeral=True, delete_after=30)
     
     channel = interaction.channel
     deleted = 0
