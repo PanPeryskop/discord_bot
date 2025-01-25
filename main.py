@@ -812,7 +812,7 @@ async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Cho
             audio_path = generator.generate_singing(text, filename)
             
         if not audio_path:
-            await interaction.followup.send("🐗 *GRUNT* Something went wrong...")
+            await interaction.followup.send("🐗 Something went wrong...")
             return
 
         if interaction.guild and interaction.user.voice:
@@ -823,13 +823,11 @@ async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Cho
                 voice_client = await voice_channel.connect()
             else:
                 voice_client = guild.voice_client
-                if voice_client.is_playing():
-                    voice_client.stop()
+                if not voice_client.is_playing():
+                    voice_client.play(discord.FFmpegPCMAudio(audio_path))
+                    voice_client.source = discord.PCMVolumeTransformer(voice_client.source)
+                    voice_client.source.volume = 0.7
                     
-            voice_client.play(discord.FFmpegPCMAudio(audio_path))
-            voice_client.source = discord.PCMVolumeTransformer(voice_client.source)
-            voice_client.source.volume = 0.7
-            
         with open(audio_path, 'rb') as f:
             file = discord.File(f, filename=filename)
             await interaction.followup.send(
@@ -839,8 +837,7 @@ async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Cho
             
     except Exception as e:
         logger.error(f"Error in let_knur_cook: {str(e)}")
-        await interaction.followup.send(f"Error: {str(e)}")
+        await interaction.followup.send("Knur can't cook right now... 🐗")
 
-    
 
 client.run(TOKEN)
