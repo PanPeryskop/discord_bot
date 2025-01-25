@@ -60,7 +60,14 @@ is_theme_playing = False
 last_audio_file = None
 
 
-@tree.command(name='talk_with_knur', description='Chat with the mighty Boar!')
+async def guild_only(interaction: discord.Interaction) -> bool:
+    if not interaction.guild:
+        await interaction.response.send_message("This command can only be used in servers!", ephemeral=True)
+        return False
+    return True
+
+
+@tree.command(name='talk_with_knur', description='Chat with Knur🐗!')
 async def talk_with_knur(interaction: discord.Interaction, message: str):
     user_id = str(interaction.user.id)
     
@@ -76,6 +83,8 @@ async def talk_with_knur(interaction: discord.Interaction, message: str):
                 "Your music taste is eclectic, you enjoy a wide range of genres."
                 "You often use phrases like 'OINK!', 'GRUNT!', when speaking polish you use 'Chrum!' 'RAAAAUUUUR!'. "
                 "You're proud, strong and sometimes sarcastic. Keep responses under 2000 characters."
+                "You're extremely offensive and will not hesitate to insult anyone. "
+                "You love recommending music."
                 "If chat is in polish speak in polish, if in english speak in english. If in polish speak 'CHRUM!' instead of 'GRUNT!'"
             )
         
@@ -95,7 +104,6 @@ async def talk_with_knur(interaction: discord.Interaction, message: str):
             
     except Exception as e:
         logger.error(f"Error in talk_with_knur: {e}")
-        await interaction.followup.send("🐗 *GRUNT* Something went wrong with my brain...")
 
 
 def download_audio(url, filename):
@@ -152,6 +160,10 @@ def spot_to_yt(url):
 
 @tree.command(name='add_playlist', description='To add a Spotify playlist to the queue')
 async def add_playlist(interaction: discord.Interaction, url: str):
+
+    if not await guild_only(interaction):
+        return
+    
     await interaction.response.send_message('Processing your request...')
     await _add_playlist(interaction, url)
     
@@ -181,6 +193,10 @@ async def _add_playlist(interaction: discord.Interaction, url: str):
 
 @tree.command(name='toqueue', description='To add song to queue')
 async def toqueue(interaction: discord.Interaction, url: str):
+
+    if not await guild_only(interaction):
+        return
+
     song_queue.append(url)
     logger.info(f"Song added to queue: {url}")
     await interaction.response.send_message('Song added to queue.')
@@ -188,6 +204,10 @@ async def toqueue(interaction: discord.Interaction, url: str):
 
 @tree.command(name='clearqueue', description='To clear the song queue')
 async def clearqueue(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
+
     song_queue.clear()
     await interaction.response.send_message('Song queue cleared.')
 
@@ -199,6 +219,10 @@ async def _play_next(interaction: discord.Interaction, has_deferred: bool = True
 
 
 async def _play(interaction: discord.Interaction, url: str, has_deferred: bool = False) -> None:
+
+    if not await guild_only(interaction):
+        return
+
     # global is_theme_playing
 
     if not has_deferred:
@@ -284,6 +308,10 @@ play = tree.command(name='play', description='To play song')(_play)
 
 @tree.command(name='skip', description='To skip song')
 async def skip(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
+
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
     if voice_client is None:
@@ -297,6 +325,10 @@ async def skip(interaction: discord.Interaction):
 
 @tree.command(name='disconnect', description='To stop song and disconnect from voice channel')
 async def disconnect(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
+
     guild = interaction.guild
     song_queue.clear()
     await interaction.response.send_message('Disconnecting from voice channel.')
@@ -305,6 +337,10 @@ async def disconnect(interaction: discord.Interaction):
 
 @tree.command(name='checkqueue', description='To check the song queue')
 async def check_queue(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
+
     if not song_queue:
         await interaction.response.send_message('The song queue is empty.')
     else:
@@ -313,6 +349,10 @@ async def check_queue(interaction: discord.Interaction):
 
 @tree.command(name='showqueue', description='To show the song queue')
 async def show_queue(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
+
     if not song_queue:
         await interaction.response.send_message('The song queue is empty.')
     else:
@@ -326,6 +366,10 @@ async def show_queue(interaction: discord.Interaction):
 
 @tree.command(name='ficzur', description='Ficzuring')
 async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
+
+    if not await guild_only(interaction):
+        return
+
     await interaction.response.send_message('Ficzurin\'...')
     guild = interaction.guild
     member = guild.get_member(interaction.user.id)
@@ -427,6 +471,10 @@ async def on_message(message):
 
 @tree.command(name='play_my', description='Play a user\'s audio file')
 async def play_my(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
+
     global last_audio_file
     guild = interaction.guild
     member = guild.get_member(interaction.user.id)
@@ -457,6 +505,10 @@ async def play_my(interaction: discord.Interaction):
     app_commands.Choice(name='yabujin', value='yabujin'),
 ])
 async def theme(interaction: discord.Interaction, theme: app_commands.Choice[str]):
+
+    if not await guild_only(interaction):
+        return
+
     global is_theme_playing, theme_queue
     if is_theme_playing:
         await interaction.response.send_message('A theme is already playing.')
@@ -509,6 +561,10 @@ async def play_next_theme_song(interaction):
 
 @tree.command(name='stop_theme', description='Stop the current theme and clear the theme queue')
 async def stop_theme(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
+
     global is_theme_playing, theme_queue
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
@@ -520,6 +576,10 @@ async def stop_theme(interaction: discord.Interaction):
 
 @tree.command(name='stop', description='Stop all')
 async def stop(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
+
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
     if voice_client and voice_client.is_playing():
@@ -540,6 +600,10 @@ is_random_playing = False
 
 @tree.command(name='play_random', description='Play randomly generated songs')
 async def play_random(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
+
     global is_random_playing
     
     if is_random_playing:
@@ -597,6 +661,10 @@ async def play_next_random(interaction):
 
 @tree.command(name='stop_random', description='Stop random music playback')
 async def stop_random(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
+
     global is_random_playing
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
@@ -611,6 +679,9 @@ def sanitize_filename(filename):
 
 @tree.command(name='download_channel', description='Download all attachments from channel')
 async def download_attachments(interaction: discord.Interaction):
+
+    if not await guild_only(interaction):
+        return
 
     if not interaction.user.guild_permissions.administrator and not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message("You don't have permission to use this command!", ephemeral=True)
@@ -679,6 +750,10 @@ async def download_attachments(interaction: discord.Interaction):
 
 @tree.command(name='delete_messages', description='Delete provided number of messages from channel')
 async def delete_messages(interaction: discord.Interaction, count: int):
+
+    if not await guild_only(interaction):
+        return
+
     if not interaction.user.guild_permissions.administrator and not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message("You don't have permission to use this command!", ephemeral=True)
         return
