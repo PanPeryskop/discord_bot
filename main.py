@@ -104,6 +104,8 @@ async def talk_with_knur(interaction: discord.Interaction, message: str):
             
     except Exception as e:
         logger.error(f"Error in talk_with_knur: {e}")
+        await interaction.followup.send("🐗 *GRUNT* Something went wrong...")
+
 
 
 def download_audio(url, filename):
