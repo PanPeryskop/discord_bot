@@ -22,6 +22,7 @@ import re
 from datetime import datetime
 from audio_gen import AudioGenerator
 
+logging.disable(logging.ERROR)
 
 load_dotenv()
 
@@ -55,10 +56,22 @@ intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
-song_queue = []
-theme_queue = []
-is_theme_playing = False
+class ServerState:
+    def __init__(self):
+        self.song_queue = []
+        self.theme_queue = []
+        self.is_theme_playing = False
+        self.is_random_playing = False
+        self.voice_client = None
+
+server_states = {}
 last_audio_file = None
+
+def get_server_state(guild_id):
+    if guild_id not in server_states:
+        server_states[guild_id] = ServerState()
+    return server_states[guild_id]
+
 
 generator = AudioGenerator()
 
@@ -174,6 +187,8 @@ async def add_playlist(interaction: discord.Interaction, url: str):
     
 
 async def _add_playlist(interaction: discord.Interaction, url: str):
+    song_queue = get_server_state(interaction.guild.id).song_queue
+
     try:
         if url.startswith('https://open.spotify.com/playlist/'):
             playlist_id = url.split('/')[-1].split('?')[0] if '?' in url else url.split('/')[-1]
@@ -201,6 +216,8 @@ async def toqueue(interaction: discord.Interaction, url: str):
 
     if not await guild_only(interaction):
         return
+    
+    song_queue = get_server_state(interaction.guild.id).song_queue
 
     song_queue.append(url)
     logger.info(f"Song added to queue: {url}")
@@ -213,11 +230,17 @@ async def clearqueue(interaction: discord.Interaction):
     if not await guild_only(interaction):
         return
 
+    song_queue = get_server_state(interaction.guild.id).song_queue
+
+
     song_queue.clear()
     await interaction.response.send_message('Song queue cleared.')
 
 
 async def _play_next(interaction: discord.Interaction, has_deferred: bool = True) -> None:
+
+    song_queue = get_server_state(interaction.guild.id).song_queue
+
     if song_queue:
         url = song_queue.pop(0)
         await _play(interaction, url, has_deferred=has_deferred)
@@ -228,14 +251,10 @@ async def _play(interaction: discord.Interaction, url: str, has_deferred: bool =
     if not await guild_only(interaction):
         return
 
-    # global is_theme_playing
+    song_queue = get_server_state(interaction.guild.id).song_queue
 
     if not has_deferred:
         await interaction.response.defer()
-
-    # if is_theme_playing:
-    #     await interaction.followup.send('A theme is currently playing. Please wait.')
-    #     return
 
     guild = interaction.guild
     member = guild.get_member(interaction.user.id)
@@ -334,6 +353,8 @@ async def disconnect(interaction: discord.Interaction):
     if not await guild_only(interaction):
         return
 
+    song_queue = get_server_state(interaction.guild.id).song_queue
+
     guild = interaction.guild
     song_queue.clear()
     await interaction.response.send_message('Disconnecting from voice channel.')
@@ -345,6 +366,8 @@ async def check_queue(interaction: discord.Interaction):
 
     if not await guild_only(interaction):
         return
+    
+    song_queue = get_server_state(interaction.guild.id).song_queue
 
     if not song_queue:
         await interaction.response.send_message('The song queue is empty.')
@@ -357,6 +380,8 @@ async def show_queue(interaction: discord.Interaction):
 
     if not await guild_only(interaction):
         return
+    
+    song_queue = get_server_state(interaction.guild.id).song_queue
 
     if not song_queue:
         await interaction.response.send_message('The song queue is empty.')
@@ -437,6 +462,7 @@ async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
 
 @client.event
 async def on_message(message):
+
     global last_audio_file
     if message.author.bot:
         return
@@ -514,7 +540,11 @@ async def theme(interaction: discord.Interaction, theme: app_commands.Choice[str
     if not await guild_only(interaction):
         return
 
-    global is_theme_playing, theme_queue
+    
+    is_theme_playing = get_server_state(interaction.guild.id).is_theme_playing
+    theme_queue = get_server_state(interaction.guild.id).theme_queue
+
+
     if is_theme_playing:
         await interaction.response.send_message('A theme is already playing.')
         return
@@ -535,7 +565,10 @@ async def theme(interaction: discord.Interaction, theme: app_commands.Choice[str
 
 
 async def play_next_theme_song(interaction):
-    global is_theme_playing, theme_queue
+
+    is_theme_playing = get_server_state(interaction.guild.id).is_theme_playing
+    theme_queue = get_server_state(interaction.guild.id).theme_queue
+
     if theme_queue:
         song = theme_queue.pop(0)
         guild = interaction.guild
@@ -570,7 +603,9 @@ async def stop_theme(interaction: discord.Interaction):
     if not await guild_only(interaction):
         return
 
-    global is_theme_playing, theme_queue
+    is_theme_playing = get_server_state(interaction.guild.id).is_theme_playing
+    theme_queue = get_server_state(interaction.guild.id).theme_queue
+
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
     theme_queue = []
@@ -584,6 +619,8 @@ async def stop(interaction: discord.Interaction):
 
     if not await guild_only(interaction):
         return
+    
+    song_queue = get_server_state(interaction.guild.id).song_queue
 
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
@@ -609,7 +646,7 @@ async def play_random(interaction: discord.Interaction):
     if not await guild_only(interaction):
         return
 
-    global is_random_playing
+    is_random_playing = get_server_state(interaction.guild.id).is_random_playing
     
     if is_random_playing:
         await interaction.response.send_message('Random music is already playing.')
@@ -620,7 +657,7 @@ async def play_random(interaction: discord.Interaction):
     await interaction.response.send_message('Starting random music playback.')
 
 async def play_next_random(interaction):
-    global is_random_playing
+    is_random_playing = get_server_state(interaction.guild.id).is_random_playing
     
     if not is_random_playing:
         return
@@ -670,7 +707,8 @@ async def stop_random(interaction: discord.Interaction):
     if not await guild_only(interaction):
         return
 
-    global is_random_playing
+    is_random_playing = get_server_state(interaction.guild.id).is_random_playing    
+
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
     if voice_client and voice_client.is_playing():
