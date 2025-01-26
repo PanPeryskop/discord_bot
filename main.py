@@ -63,18 +63,16 @@ class ServerState:
         self.is_theme_playing = False
         self.is_random_playing = False
         self.voice_client = None
+        self.last_audio_file = None
 
 server_states = {}
-last_audio_file = None
 
 def get_server_state(guild_id):
     if guild_id not in server_states:
         server_states[guild_id] = ServerState()
     return server_states[guild_id]
 
-
 generator = AudioGenerator()
-
 
 async def guild_only(interaction: discord.Interaction) -> bool:
     if not interaction.guild:
@@ -82,18 +80,14 @@ async def guild_only(interaction: discord.Interaction) -> bool:
         return False
     return True
 
-
 @tree.command(name='talk_with_knur', description='Chat with Knur🐗!')
 async def talk_with_knur(interaction: discord.Interaction, message: str):
     user_id = str(interaction.user.id)
-    
     try:
         await interaction.response.defer()
-        
-        
+
         if user_id not in conversation_memory:
             conversation_memory[user_id] = model.start_chat(history=[])
-            
             conversation_memory[user_id].send_message(
                 "You are a mighty wild boar named Knur. You speak in a bold, powerful way. "
                 "Your music taste is eclectic, you enjoy a wide range of genres."
@@ -103,26 +97,20 @@ async def talk_with_knur(interaction: discord.Interaction, message: str):
                 "You love recommending music."
                 "If chat is in polish speak in polish, if in english speak in english. If in polish speak 'CHRUM!' instead of 'GRUNT!'"
             )
-        
-        
+
         response = conversation_memory[user_id].send_message(message)
-        
-        
         formatted_response = f"🐗 {response.text}"
-        
-        
+
         if len(formatted_response) > 2000:
             parts = [formatted_response[i:i+1999] for i in range(0, len(formatted_response), 1999)]
             for part in parts:
                 await interaction.followup.send(part)
         else:
             await interaction.followup.send(formatted_response)
-            
+
     except Exception as e:
         logger.error(f"Error in talk_with_knur: {e}")
         await interaction.followup.send("🐗 *GRUNT* Something went wrong...")
-
-
 
 def download_audio(url, filename):
     ydl_opts = {
@@ -139,7 +127,6 @@ def download_audio(url, filename):
             ydl.download([url])
     except Exception as e:
         logger.error(f"Error downloading audio: {e}")
-
 
 def spot_to_yt(url):
     try:
@@ -175,20 +162,16 @@ def spot_to_yt(url):
         logger.error(f"Error converting Spotify to YouTube: {e}")
     return None
 
-
 @tree.command(name='add_playlist', description='To add a Spotify playlist to the queue')
 async def add_playlist(interaction: discord.Interaction, url: str):
-
     if not await guild_only(interaction):
         return
-    
     await interaction.response.send_message('Processing your request...')
     await _add_playlist(interaction, url)
-    
 
 async def _add_playlist(interaction: discord.Interaction, url: str):
-    song_queue = get_server_state(interaction.guild.id).song_queue
-
+    state = get_server_state(interaction.guild.id)
+    song_queue = state.song_queue
     try:
         if url.startswith('https://open.spotify.com/playlist/'):
             playlist_id = url.split('/')[-1].split('?')[0] if '?' in url else url.split('/')[-1]
@@ -197,7 +180,6 @@ async def _add_playlist(interaction: discord.Interaction, url: str):
                 song = item['track']
                 song_url = 'https://open.spotify.com/track/' + song['id']
                 song_queue.append(song_url)
-            
             await interaction.followup.send('Songs from playlist added to queue.')
 
             guild = interaction.guild
@@ -210,48 +192,36 @@ async def _add_playlist(interaction: discord.Interaction, url: str):
         logger.error(f"Error adding playlist: {e}")
         await interaction.followup.send('An error occurred while processing your request.')
 
-
 @tree.command(name='toqueue', description='To add song to queue')
 async def toqueue(interaction: discord.Interaction, url: str):
-
     if not await guild_only(interaction):
         return
-    
-    song_queue = get_server_state(interaction.guild.id).song_queue
-
-    song_queue.append(url)
+    state = get_server_state(interaction.guild.id)
+    state.song_queue.append(url)
     logger.info(f"Song added to queue: {url}")
     await interaction.response.send_message('Song added to queue.')
 
-
 @tree.command(name='clearqueue', description='To clear the song queue')
 async def clearqueue(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
-
-    song_queue = get_server_state(interaction.guild.id).song_queue
-
-
-    song_queue.clear()
+    state = get_server_state(interaction.guild.id)
+    state.song_queue.clear()
     await interaction.response.send_message('Song queue cleared.')
 
-
 async def _play_next(interaction: discord.Interaction, has_deferred: bool = True) -> None:
-
-    song_queue = get_server_state(interaction.guild.id).song_queue
-
+    state = get_server_state(interaction.guild.id)
+    song_queue = state.song_queue
     if song_queue:
         url = song_queue.pop(0)
         await _play(interaction, url, has_deferred=has_deferred)
 
-
 async def _play(interaction: discord.Interaction, url: str, has_deferred: bool = False) -> None:
-
     if not await guild_only(interaction):
         return
 
-    song_queue = get_server_state(interaction.guild.id).song_queue
+    state = get_server_state(interaction.guild.id)
+    song_queue = state.song_queue
 
     if not has_deferred:
         await interaction.response.defer()
@@ -262,8 +232,10 @@ async def _play(interaction: discord.Interaction, url: str, has_deferred: bool =
 
     if guild.voice_client is None:
         voice_channel = await channel.connect()
+        state.voice_client = voice_channel
     else:
         voice_channel = guild.voice_client
+        state.voice_client = voice_channel
         if voice_channel.is_playing():
             song_queue.append(url)
             await interaction.followup.send('Song added to queue.')
@@ -273,7 +245,6 @@ async def _play(interaction: discord.Interaction, url: str, has_deferred: bool =
         if 'playlist' in url:
             await _add_playlist(interaction, url)
             return
-
 
         if url.startswith(('https://www.youtube.com/watch?v=', 'https://youtu.be/', 'https://soundcloud.com/')):
             download_audio(url, 'temp_audio')
@@ -311,10 +282,10 @@ async def _play(interaction: discord.Interaction, url: str, has_deferred: bool =
             await _play(interaction, current_song, has_deferred=True)
         else:
             await interaction.followup.send('Invalid URL. Please provide a valid track URL.')
+
     except Exception as e:
         logger.error(f"Error playing song: {e}")
         await interaction.followup.send('An error occurred while processing your request.')
-
 
 def get_song_name(url):
     if 'youtube' in url or 'youtu.be' in url:
@@ -329,13 +300,10 @@ def get_song_name(url):
 play_next = tree.command(name='play_next', description='To play next song')(_play_next)
 play = tree.command(name='play', description='To play song')(_play)
 
-
 @tree.command(name='skip', description='To skip song')
 async def skip(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
-
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
     if voice_client is None:
@@ -346,57 +314,47 @@ async def skip(interaction: discord.Interaction):
         voice_client.stop()
         await interaction.response.send_message("Stopped the song.")
 
-
 @tree.command(name='disconnect', description='To stop song and disconnect from voice channel')
 async def disconnect(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
-
-    song_queue = get_server_state(interaction.guild.id).song_queue
+    state = get_server_state(interaction.guild.id)
+    state.song_queue.clear()
 
     guild = interaction.guild
-    song_queue.clear()
-    await interaction.response.send_message('Disconnecting from voice channel.')
-    await interaction.guild.voice_client.disconnect()
-
+    if guild.voice_client:
+        await interaction.response.send_message('Disconnecting from voice channel.')
+        await guild.voice_client.disconnect()
+    else:
+        await interaction.response.send_message('Not connected to any voice channel.')
 
 @tree.command(name='checkqueue', description='To check the song queue')
 async def check_queue(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
-    
-    song_queue = get_server_state(interaction.guild.id).song_queue
-
-    if not song_queue:
+    state = get_server_state(interaction.guild.id)
+    if not state.song_queue:
         await interaction.response.send_message('The song queue is empty.')
     else:
-        await interaction.response.send_message(f'The song queue has {len(song_queue)} songs.')
-
+        await interaction.response.send_message(f'The song queue has {len(state.song_queue)} songs.')
 
 @tree.command(name='showqueue', description='To show the song queue')
 async def show_queue(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
-    
-    song_queue = get_server_state(interaction.guild.id).song_queue
-
-    if not song_queue:
+    state = get_server_state(interaction.guild.id)
+    if not state.song_queue:
         await interaction.response.send_message('The song queue is empty.')
     else:
         await interaction.response.send_message('Song queue:')
-        for i in range(0, len(song_queue), 30):
+        for i in range(0, len(state.song_queue), 30):
             message = ''
-            for j, song in enumerate(song_queue[i:i + 30], start=i + 1):
+            for j, song in enumerate(state.song_queue[i:i + 30], start=i + 1):
                 message += f'{j}. {song}\n'
             await interaction.followup.send(message)
 
-
 @tree.command(name='ficzur', description='Ficzuring')
 async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
-
     if not await guild_only(interaction):
         return
 
@@ -407,8 +365,10 @@ async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
 
     if guild.voice_client is None:
         voice_channel = await channel.connect()
+        get_server_state(guild.id).voice_client = voice_channel
     else:
         voice_channel = guild.voice_client
+        get_server_state(guild.id).voice_client = voice_channel
         if voice_channel.is_playing():
             voice_channel.stop()
 
@@ -459,30 +419,27 @@ async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
         logger.error(f"Error in ficzur: {e}")
         await interaction.edit_original_response(content='An error occurred while processing your request.')
 
-
 @client.event
 async def on_message(message):
-
-    global last_audio_file
     if message.author.bot:
         return
-        
+    if not message.guild:
+        return
+
+    state = get_server_state(message.guild.id)
     if message.attachments:
         os.makedirs("./songs", exist_ok=True)
-        
         for attachment in message.attachments:
             if attachment.filename.endswith(('.mp3', '.wav')):
                 if attachment.size > 25 * 1024 * 1024:
                     await message.channel.send("File too large! Maximum size is 25MB.")
                     continue
-                    
                 try:
                     file_path = f"./songs/{attachment.filename}"
                     await attachment.save(file_path)
-                    last_audio_file = file_path
-                    
-                    await message.add_reaction('🐗')                      
+                    state.last_audio_file = file_path
 
+                    await message.add_reaction('🐗')
                     boar_messages = [
                         f"🐗 Knur has captured **{attachment.filename}**",
                         f"🐗 Knur's mighty ears detected new sound: **{attachment.filename}**!",
@@ -490,42 +447,39 @@ async def on_message(message):
                         f"🐗 Knur has detected new banger: **{attachment.filename}**!"
                     ]
                     await message.channel.send(random.choice(boar_messages))
-                    
                     logger.info(f"Saved audio file: {file_path}")
                     break
-                    
                 except Exception as e:
                     logger.error(f"Failed to save audio file: {e}")
                     await message.channel.send("Failed to save audio file!")
                     await message.add_reaction('❌')
 
-
 @tree.command(name='play_my', description='Play a user\'s audio file')
 async def play_my(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
 
-    global last_audio_file
+    state = get_server_state(interaction.guild.id)
     guild = interaction.guild
     member = guild.get_member(interaction.user.id)
     channel = member.voice.channel
 
     if guild.voice_client is None:
         voice_channel = await channel.connect()
+        state.voice_client = voice_channel
     else:
         voice_channel = guild.voice_client
+        state.voice_client = voice_channel
         if voice_channel.is_playing():
             voice_channel.stop()
 
-    if last_audio_file is not None:
-        voice_channel.play(discord.FFmpegPCMAudio(last_audio_file), after=lambda e: client.loop.create_task(_play_next(interaction)))
+    if state.last_audio_file:
+        voice_channel.play(discord.FFmpegPCMAudio(state.last_audio_file), after=lambda e: client.loop.create_task(_play_next(interaction)))
         voice_channel.source = discord.PCMVolumeTransformer(voice_channel.source)
         voice_channel.source.volume = 0.5
         await interaction.response.send_message('Playing your audio file now.')
     else:
         await interaction.response.send_message('No audio file found.')
-
 
 @tree.command(name='theme', description='Play a theme from a predefined list')
 @app_commands.choices(theme=[
@@ -536,19 +490,15 @@ async def play_my(interaction: discord.Interaction):
     app_commands.Choice(name='yabujin', value='yabujin'),
 ])
 async def theme(interaction: discord.Interaction, theme: app_commands.Choice[str]):
-
     if not await guild_only(interaction):
         return
 
-    
-    is_theme_playing = get_server_state(interaction.guild.id).is_theme_playing
-    theme_queue = get_server_state(interaction.guild.id).theme_queue
-
-
-    if is_theme_playing:
+    state = get_server_state(interaction.guild.id)
+    if state.is_theme_playing:
         await interaction.response.send_message('A theme is already playing.')
         return
-    is_theme_playing = True
+
+    state.is_theme_playing = True
     theme_folder = {
         'fent': 'C:/Users/stgad/Music/Fent',
         'miodowanie': 'C:/Users/stgad/Music/Poldon Crusin',
@@ -559,15 +509,13 @@ async def theme(interaction: discord.Interaction, theme: app_commands.Choice[str
     folder = theme_folder[theme.value]
     songs = [os.path.join(folder, file) for file in os.listdir(folder) if file.endswith('.mp3')]
     random.shuffle(songs)
-    theme_queue.extend(songs)
+    state.theme_queue.extend(songs)
     await interaction.response.send_message(f'Added {theme.value} theme songs to the queue.')
     await play_next_theme_song(interaction)
 
-
 async def play_next_theme_song(interaction):
-
-    is_theme_playing = get_server_state(interaction.guild.id).is_theme_playing
-    theme_queue = get_server_state(interaction.guild.id).theme_queue
+    state = get_server_state(interaction.guild.id)
+    theme_queue = state.theme_queue
 
     if theme_queue:
         song = theme_queue.pop(0)
@@ -577,6 +525,7 @@ async def play_next_theme_song(interaction):
 
         if guild.voice_client is None:
             voice_channel = await channel.connect()
+            state.voice_client = voice_channel
             intro_path = {
                 1: "C:/Users/stgad/Music/Knur intro/intro 1.mp3",
                 2: "C:/Users/stgad/Music/Knur intro/intro 2.mp3",
@@ -587,6 +536,7 @@ async def play_next_theme_song(interaction):
                 voice_channel.play(discord.FFmpegPCMAudio(intro_path[2]), after=lambda e: client.loop.create_task(play_next_theme_song(interaction)))
         else:
             voice_channel = guild.voice_client
+            state.voice_client = voice_channel
             if voice_channel.is_playing():
                 voice_channel.stop()
 
@@ -594,41 +544,34 @@ async def play_next_theme_song(interaction):
         voice_channel.source = discord.PCMVolumeTransformer(voice_channel.source)
         voice_channel.source.volume = 0.5
     else:
-        is_theme_playing = False
-
+        state.is_theme_playing = False
 
 @tree.command(name='stop_theme', description='Stop the current theme and clear the theme queue')
 async def stop_theme(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
-
-    is_theme_playing = get_server_state(interaction.guild.id).is_theme_playing
-    theme_queue = get_server_state(interaction.guild.id).theme_queue
-
+    state = get_server_state(interaction.guild.id)
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
-    theme_queue = []
+
+    state.theme_queue.clear()
     if voice_client and voice_client.is_playing():
         voice_client.stop()
-    is_theme_playing = False
+    state.is_theme_playing = False
     await interaction.response.send_message('Stopped the theme and cleared the theme queue.')
 
 @tree.command(name='stop', description='Stop all')
 async def stop(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
-    
-    song_queue = get_server_state(interaction.guild.id).song_queue
-
+    state = get_server_state(interaction.guild.id)
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
+
     if voice_client and voice_client.is_playing():
         voice_client.stop()
-    song_queue.clear()
+    state.song_queue.clear()
     await interaction.response.send_message('Stopped all.')
-
 
 @client.event
 async def on_ready():
@@ -637,92 +580,81 @@ async def on_ready():
         await tree.sync()
     logger.info("Ready!")
 
-
-is_random_playing = False
-
 @tree.command(name='play_random', description='Play randomly generated songs')
 async def play_random(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
 
-    is_random_playing = get_server_state(interaction.guild.id).is_random_playing
-    
-    if is_random_playing:
+    state = get_server_state(interaction.guild.id)
+    if state.is_random_playing:
         await interaction.response.send_message('Random music is already playing.')
         return
 
-    is_random_playing = True
+    state.is_random_playing = True
     await play_next_random(interaction)
     await interaction.response.send_message('Starting random music playback.')
 
 async def play_next_random(interaction):
-    is_random_playing = get_server_state(interaction.guild.id).is_random_playing
-    
-    if not is_random_playing:
+    state = get_server_state(interaction.guild.id)
+    if not state.is_random_playing:
         return
-        
+
     try:
         genres = Genres(sp)
         track_url = genres.get_song()
-        
         if track_url:
             guild = interaction.guild
-            
             track_url = track_url.replace('spotify:track:', 'https://open.spotify.com/track/')
-
             yt_url = spot_to_yt(track_url)
             if yt_url:
                 download_audio(yt_url, 'temp_audio')
                 audio_file = 'audios/temp_audio.mp3'
                 song_name = get_song_name(yt_url)
-                
+
                 if guild.voice_client is None:
                     member = guild.get_member(interaction.user.id)
                     channel = member.voice.channel
                     voice_client = await channel.connect()
+                    state.voice_client = voice_client
                 else:
                     voice_client = guild.voice_client
+                    state.voice_client = voice_client
                     if voice_client.is_playing():
                         voice_client.stop()
-                
+
                 voice_client.play(
                     discord.FFmpegPCMAudio(audio_file),
                     after=lambda e: asyncio.run_coroutine_threadsafe(play_next_random(interaction), client.loop)
                 )
                 voice_client.source = discord.PCMVolumeTransformer(voice_client.source, 0.5)
-                
+
                 try:
                     await interaction.channel.send(f'Now playing: {song_name}')
                 except:
                     pass
-            
+
     except Exception as e:
         logger.error(f"Error in play_next_random: {e}")
-        is_random_playing = False
+        state.is_random_playing = False
 
 @tree.command(name='stop_random', description='Stop random music playback')
 async def stop_random(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
-
-    is_random_playing = get_server_state(interaction.guild.id).is_random_playing    
-
+    state = get_server_state(interaction.guild.id)
     guild = interaction.guild
     voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
+
     if voice_client and voice_client.is_playing():
         voice_client.stop()
-    is_random_playing = False
+    state.is_random_playing = False
     await interaction.response.send_message('Stopped random music playback.')
-
 
 def sanitize_filename(filename):
     return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
 @tree.command(name='download_channel', description='Download all attachments from channel')
 async def download_attachments(interaction: discord.Interaction):
-
     if not await guild_only(interaction):
         return
 
@@ -731,57 +663,53 @@ async def download_attachments(interaction: discord.Interaction):
         return
 
     await interaction.response.defer()
-    
     today = datetime.now().strftime('%Y-%m-%d')
     server_name = sanitize_filename(interaction.guild.name)
     channel_name = sanitize_filename(interaction.channel.name)
-    
+
     downloads_dir = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), 
+        os.path.dirname(os.path.abspath(__file__)),
         'downloads',
         server_name,
         channel_name,
         today
     )
-    
+
     if not os.path.exists(downloads_dir):
         os.makedirs(downloads_dir)
-    
+
     channel = interaction.channel
     downloaded = 0
     failed = 0
     total_attachments = 0
-    
+
     async for message in channel.history(limit=None):
         total_attachments += len(message.attachments)
-    
+
     if total_attachments == 0:
         await interaction.followup.send("No attachments found in this channel!")
         return
 
     status_message = await interaction.followup.send(f'Starting download of {total_attachments} attachments...')
-    
+
     async with aiohttp.ClientSession() as session:
         async for message in channel.history(limit=None):
-            if message.attachments:
-                for attachment in message.attachments:
-                    try:
-                        filename = os.path.join(downloads_dir, sanitize_filename(attachment.filename))
-                        
-                        async with session.get(attachment.url) as resp:
-                            if resp.status == 200:
-                                with open(filename, 'wb') as f:
-                                    f.write(await resp.read())
-                                    downloaded += 1
-                                    
-                                if downloaded % 10 == 0:  
-                                    await status_message.edit(content=f'Progress: {downloaded}/{total_attachments} files downloaded...')
-                            else:
-                                failed += 1
-                    except Exception as e:
-                        logger.error(f"Failed to download {attachment.filename}: {e}")
-                        failed += 1
-    
+            for attachment in message.attachments:
+                try:
+                    filename = os.path.join(downloads_dir, sanitize_filename(attachment.filename))
+                    async with session.get(attachment.url) as resp:
+                        if resp.status == 200:
+                            with open(filename, 'wb') as f:
+                                f.write(await resp.read())
+                            downloaded += 1
+                            if downloaded % 10 == 0:
+                                await status_message.edit(content=f'Progress: {downloaded}/{total_attachments} files downloaded...')
+                        else:
+                            failed += 1
+                except Exception as e:
+                    logger.error(f"Failed to download {attachment.filename}: {e}")
+                    failed += 1
+
     final_message = (
         f'Download complete!\n'
         f'Location: {downloads_dir}\n'
@@ -790,10 +718,8 @@ async def download_attachments(interaction: discord.Interaction):
     )
     await status_message.edit(content=final_message)
 
-
 @tree.command(name='delete_messages', description='Delete provided number of messages from channel')
 async def delete_messages(interaction: discord.Interaction, count: int):
-
     if not await guild_only(interaction):
         return
 
@@ -806,11 +732,10 @@ async def delete_messages(interaction: discord.Interaction, count: int):
         return
 
     await interaction.response.send_message(f"Starting deletion of {count} messages...", ephemeral=True, delete_after=30)
-    
     channel = interaction.channel
     deleted = 0
     failed = 0
-    
+
     try:
         async for message in channel.history(limit=count):
             try:
@@ -820,18 +745,16 @@ async def delete_messages(interaction: discord.Interaction, count: int):
             except Exception as e:
                 logger.error(f"Failed to delete message: {e}")
                 failed += 1
-                
-                    
+
         final_message = f"Completed! Deleted {deleted} messages."
         if failed > 0:
             final_message += f" Failed to delete {failed} messages."
-            
+
         await interaction.channel.send(final_message, delete_after=10)
-        
+
     except Exception as e:
         logger.error(f"Error in delete_messages: {e}")
         await interaction.channel.send("An error occurred while deleting messages.", delete_after=10)
-
 
 @tree.command(name='let_knur_cook', description='Let Knur speak or sing!')
 @app_commands.choices(mode=[
@@ -840,15 +763,13 @@ async def delete_messages(interaction: discord.Interaction, count: int):
 ])
 async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Choice[str], text: str):
     await interaction.response.defer()
-    
     try:
         filename = f"knur_{mode.value}.wav"
-        
         if mode.value == 'speak':
             audio_path = generator.generate_speech(text, filename)
         else:
             audio_path = generator.generate_singing(text, filename)
-            
+
         if not audio_path:
             await interaction.followup.send("🐗 Something went wrong...")
             return
@@ -856,7 +777,6 @@ async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Cho
         if interaction.guild and interaction.user.voice:
             guild = interaction.guild
             voice_channel = interaction.user.voice.channel
-            
             if guild.voice_client is None:
                 voice_client = await voice_channel.connect()
             else:
@@ -865,17 +785,15 @@ async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Cho
                     voice_client.play(discord.FFmpegPCMAudio(audio_path))
                     voice_client.source = discord.PCMVolumeTransformer(voice_client.source)
                     voice_client.source.volume = 0.7
-                    
+
         with open(audio_path, 'rb') as f:
             file = discord.File(f, filename=filename)
             await interaction.followup.send(
                 content=f"🐗 Knur is {mode.value}ing: {text}",
                 file=file
             )
-            
     except Exception as e:
         logger.error(f"Error in let_knur_cook: {str(e)}")
         await interaction.followup.send("Knur can't cook right now... 🐗")
-
 
 client.run(TOKEN)
