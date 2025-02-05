@@ -22,7 +22,7 @@ import re
 from datetime import datetime
 from audio_gen import AudioGenerator
 
-logging.disable(logging.ERROR)
+# logging.disable(logging.ERROR)
 
 load_dotenv()
 
@@ -419,25 +419,29 @@ async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
         logger.error(f"Error in ficzur: {e}")
         await interaction.edit_original_response(content='An error occurred while processing your request.')
 
+
 @client.event
 async def on_message(message):
     if message.author.bot:
         return
-    if not message.guild:
+    if message.guild:
         return
 
-    state = get_server_state(message.guild.id)
+    user_id = message.author.id
     if message.attachments:
         os.makedirs("./songs", exist_ok=True)
         for attachment in message.attachments:
             if attachment.filename.endswith(('.mp3', '.wav')):
+                print('Audio file found')
                 if attachment.size > 25 * 1024 * 1024:
                     await message.channel.send("File too large! Maximum size is 25MB.")
                     continue
                 try:
                     file_path = f"./songs/{attachment.filename}"
                     await attachment.save(file_path)
-                    state.last_audio_file = file_path
+                    if user_id not in server_states:
+                        server_states[user_id] = ServerState()
+                    server_states[user_id].last_audio_file = file_path
 
                     await message.add_reaction('🐗')
                     boar_messages = [
@@ -459,6 +463,11 @@ async def play_my(interaction: discord.Interaction):
     if not await guild_only(interaction):
         return
 
+    user_id = interaction.user.id
+    if user_id not in server_states or not server_states[user_id].last_audio_file:
+        await interaction.response.send_message('No audio file found.')
+        return
+
     state = get_server_state(interaction.guild.id)
     guild = interaction.guild
     member = guild.get_member(interaction.user.id)
@@ -473,13 +482,11 @@ async def play_my(interaction: discord.Interaction):
         if voice_channel.is_playing():
             voice_channel.stop()
 
-    if state.last_audio_file:
-        voice_channel.play(discord.FFmpegPCMAudio(state.last_audio_file), after=lambda e: client.loop.create_task(_play_next(interaction)))
-        voice_channel.source = discord.PCMVolumeTransformer(voice_channel.source)
-        voice_channel.source.volume = 0.5
-        await interaction.response.send_message('Playing your audio file now.')
-    else:
-        await interaction.response.send_message('No audio file found.')
+    audio_file = server_states[user_id].last_audio_file
+    voice_channel.play(discord.FFmpegPCMAudio(audio_file), after=lambda e: client.loop.create_task(_play_next(interaction)))
+    voice_channel.source = discord.PCMVolumeTransformer(voice_channel.source)
+    voice_channel.source.volume = 0.5
+    await interaction.response.send_message('Playing your audio file now.')
 
 @tree.command(name='theme', description='Play a theme from a predefined list')
 @app_commands.choices(theme=[
