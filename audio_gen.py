@@ -60,42 +60,59 @@ class AudioGenerator:
         except:
             return 'v2/en_speaker_6' if for_singing else random.choice(self.speakers['en'])
 
+    def _chunk_text(self, text, chunk_size=200):
+        chunks = []
+        lines = text.split()
+        current_chunk = []
+        current_length = 0
+
+        for word in lines:
+            if current_length + len(word) + 1 <= chunk_size:
+                current_chunk.append(word)
+                current_length += len(word) + 1
+            else:
+                chunks.append(" ".join(current_chunk))
+                current_chunk = [word]
+                current_length = len(word)
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
+
+        return chunks
+
     def generate_speech(self, text, filename="speech.wav"):
         try:
-            speaker = self._get_speaker(text)
-            audio_array = generate_audio(text, history_prompt=speaker)
-            output_path = os.path.join(self.output_dir, filename)
-            write_wav(output_path, self.sample_rate, audio_array)
-            return output_path
+            chunks = self._chunk_text(text, 200)
+            outputs = []
+            for idx, chunk in enumerate(chunks):
+                speaker = self._get_speaker(chunk)
+                audio_array = generate_audio(chunk, history_prompt=speaker)
+                outputs.append(audio_array)
+            
+            if outputs:
+                combined_audio = np.concatenate(outputs)
+                output_path = os.path.join(self.output_dir, filename)
+                write_wav(output_path, self.sample_rate, combined_audio)
+                return output_path
+            else:
+                return None
         except:
             return None
 
     def generate_singing(self, lyrics, filename="singing.wav"):
         try:
-            speaker = self._get_speaker(lyrics)
-            singing_prompt = f"""
-            ♪ {lyrics} ♪
-            """
-            audio_array = generate_audio(singing_prompt, history_prompt=speaker) 
-            output_path = os.path.join(self.output_dir, filename)
-            write_wav(output_path, self.sample_rate, audio_array)
-            return output_path
-        except:
-            return None
-        
-
-    def generate_singing(self, lyrics, filename="singing.wav"):
-        try:
-            speaker = self._get_speaker(lyrics, for_singing=True)
-            singing_prompt = f"""
-            ♪ {lyrics} ♪
-            """
-            audio_array = generate_audio(
-                singing_prompt, 
-                history_prompt=speaker,
-            )
-            output_path = os.path.join(self.output_dir, filename)
-            write_wav(output_path, self.sample_rate, audio_array)
-            return output_path
+            chunks = self._chunk_text(lyrics, 200)
+            outputs = []
+            for idx, chunk in enumerate(chunks):
+                speaker = self._get_speaker(chunk, for_singing=True)
+                singing_prompt = f"♪ {chunk} ♪"
+                audio_array = generate_audio(singing_prompt, history_prompt=speaker)
+                outputs.append(audio_array)
+            if outputs:
+                combined_audio = np.concatenate(outputs)
+                output_path = os.path.join(self.output_dir, filename)
+                write_wav(output_path, self.sample_rate, combined_audio)
+                return output_path
+            else:
+                return None
         except:
             return None
