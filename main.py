@@ -422,9 +422,13 @@ async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
 
 @client.event
 async def on_message(message):
-    user_id = message.author.id
+    if message.author.bot:
+        return
 
-    if 'knur' in message.content.lower() and message.guild:
+    keywords = ["knur", "knurze"]
+    user_id = str(message.author.id)
+
+    if any(keyword in message.content.lower() for keyword in keywords) and message.guild:
         await message.add_reaction('🐗')
         if user_id not in conversation_memory:
             conversation_memory[user_id] = model.start_chat(history=[])
@@ -445,11 +449,11 @@ async def on_message(message):
             parts = [formatted_response[i:i + 1999] for i in range(0, len(formatted_response), 1999)]
             for part in parts:
                 await message.channel.send(part)
+            return
         else:
             await message.channel.send(formatted_response)
+            return
 
-    if message.author.bot:
-        return
     if message.guild:
         return
 
