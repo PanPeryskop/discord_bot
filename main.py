@@ -72,7 +72,7 @@ def get_server_state(guild_id):
         server_states[guild_id] = ServerState()
     return server_states[guild_id]
 
-generator = AudioGenerator()
+# generator = AudioGenerator()
 
 async def guild_only(interaction: discord.Interaction) -> bool:
     if not interaction.guild:
@@ -422,12 +422,38 @@ async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
 
 @client.event
 async def on_message(message):
+    user_id = message.author.id
+
+    if 'knur' in message.content.lower() and message.guild:
+        await message.add_reaction('🐗')
+        if user_id not in conversation_memory:
+            conversation_memory[user_id] = model.start_chat(history=[])
+            conversation_memory[user_id].send_message(
+                "You are a mighty wild boar named Knur. You speak in a bold, powerful way. "
+                "Your music taste is eclectic, you enjoy a wide range of genres."
+                "You often use phrases like 'OINK!', 'GRUNT!', when speaking polish you use 'Chrum!' 'RAAAAUUUUR!'. "
+                "You're proud, strong and sometimes sarcastic. Keep responses under 2000 characters."
+                "You're extremely offensive and will not hesitate to insult anyone. "
+                "You love recommending music."
+                "If chat is in polish speak in polish, if in english speak in english. If in polish speak 'CHRUM!' instead of 'GRUNT!'"
+            )
+
+        response = conversation_memory[user_id].send_message(message.content)
+        formatted_response = f"🐗 {response.text}"
+
+        if len(formatted_response) > 2000:
+            parts = [formatted_response[i:i + 1999] for i in range(0, len(formatted_response), 1999)]
+            for part in parts:
+                await message.channel.send(part)
+        else:
+            await message.channel.send(formatted_response)
+
     if message.author.bot:
         return
     if message.guild:
         return
 
-    user_id = message.author.id
+
     if message.attachments:
         os.makedirs("./songs", exist_ok=True)
         for attachment in message.attachments:
@@ -763,44 +789,59 @@ async def delete_messages(interaction: discord.Interaction, count: int):
         logger.error(f"Error in delete_messages: {e}")
         await interaction.channel.send("An error occurred while deleting messages.", delete_after=10)
 
-@tree.command(name='let_knur_cook', description='Let Knur speak or sing!')
-@app_commands.choices(mode=[
-    app_commands.Choice(name='speak', value='speak'),
-    app_commands.Choice(name='sing', value='sing')
-])
-async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Choice[str], text: str):
-    await interaction.response.defer()
-    try:
-        filename = f"knur_{mode.value}.wav"
-        if mode.value == 'speak':
-            audio_path = generator.generate_speech(text, filename)
-        else:
-            audio_path = generator.generate_singing(text, filename)
+# @tree.command(name='let_knur_cook', description='Let Knur speak or sing!')
+# @app_commands.choices(mode=[
+#     app_commands.Choice(name='speak', value='speak'),
+#     app_commands.Choice(name='sing', value='sing')
+# ])
+# async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Choice[str], text: str):
+#     await interaction.response.defer()
+#     try:
+#         filename = f"knur_{mode.value}.wav"
+#         if mode.value == 'speak':
+#             audio_path = generator.generate_speech(text, filename)
+#         else:
+#             audio_path = generator.generate_singing(text, filename)
+#
+#         if not audio_path:
+#             await interaction.followup.send("🐗 Something went wrong...")
+#             return
+#
+#         if interaction.guild and interaction.user.voice:
+#             guild = interaction.guild
+#             voice_channel = interaction.user.voice.channel
+#             if guild.voice_client is None:
+#                 voice_client = await voice_channel.connect()
+#             else:
+#                 voice_client = guild.voice_client
+#                 if not voice_client.is_playing():
+#                     voice_client.play(discord.FFmpegPCMAudio(audio_path))
+#                     voice_client.source = discord.PCMVolumeTransformer(voice_client.source)
+#                     voice_client.source.volume = 0.7
+#
+#         with open(audio_path, 'rb') as f:
+#             file = discord.File(f, filename=filename)
+#             await interaction.followup.send(
+#                 content=f"🐗 Knur is {mode.value}ing: {text}",
+#                 file=file
+#             )
+#     except Exception as e:
+#         logger.error(f"Error in let_knur_cook: {str(e)}")
+#         await interaction.followup.send("Knur can't cook right now... 🐗")
 
-        if not audio_path:
-            await interaction.followup.send("🐗 Something went wrong...")
-            return
+@tree.command(name='stats', description='Display server stats')
+async def stats(interaction: discord.Interaction):
+    if not await guild_only(interaction):
+        return
 
-        if interaction.guild and interaction.user.voice:
-            guild = interaction.guild
-            voice_channel = interaction.user.voice.channel
-            if guild.voice_client is None:
-                voice_client = await voice_channel.connect()
-            else:
-                voice_client = guild.voice_client
-                if not voice_client.is_playing():
-                    voice_client.play(discord.FFmpegPCMAudio(audio_path))
-                    voice_client.source = discord.PCMVolumeTransformer(voice_client.source)
-                    voice_client.source.volume = 0.7
+    guild = interaction.guild
+    num_members = guild.member_count
+    created_at = guild.created_at.strftime("%Y-%m-%d %H:%M:%S")
 
-        with open(audio_path, 'rb') as f:
-            file = discord.File(f, filename=filename)
-            await interaction.followup.send(
-                content=f"🐗 Knur is {mode.value}ing: {text}",
-                file=file
-            )
-    except Exception as e:
-        logger.error(f"Error in let_knur_cook: {str(e)}")
-        await interaction.followup.send("Knur can't cook right now... 🐗")
+    stats_message = (
+        f"Total Members: {num_members}\n"
+        f"Created On: {created_at}\n"
+    )
+    await interaction.response.send_message(stats_message)
 
 client.run(TOKEN)
