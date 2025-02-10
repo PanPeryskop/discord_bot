@@ -566,11 +566,14 @@ async def play_next_theme_song(interaction):
             intro_path = {
                 1: "C:/Users/stgad/Music/Knur intro/intro 1.mp3",
                 2: "C:/Users/stgad/Music/Knur intro/intro 2.mp3",
+                3: "C:/Users/stgad/Music/Knur intro/intro 2.mp3"
             }
-            if random.random() < 0.5:
+            if random.random() < 0.33:
                 voice_channel.play(discord.FFmpegPCMAudio(intro_path[1]), after=lambda e: client.loop.create_task(play_next_theme_song(interaction)))
-            else:
+            elif random.random() < 0.66:
                 voice_channel.play(discord.FFmpegPCMAudio(intro_path[2]), after=lambda e: client.loop.create_task(play_next_theme_song(interaction)))
+            else:
+                voice_channel.play(discord.FFmpegPCMAudio(intro_path[3]), after=lambda e: client.loop.create_task(play_next_theme_song(interaction)))
         else:
             voice_channel = guild.voice_client
             state.voice_client = voice_channel
