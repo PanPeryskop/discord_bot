@@ -420,6 +420,12 @@ async def ficzur(interaction: discord.Interaction, url1: str, url2: str):
         await interaction.edit_original_response(content='An error occurred while processing your request.')
 
 
+# @client.event
+# # async def on_message(interaction: discord.Interaction, message):
+#     # if not await guild_only(interaction):
+    #     return
+
+
 @client.event
 async def on_message(message):
 
@@ -454,9 +460,6 @@ async def on_message(message):
         else:
             await message.channel.send(formatted_response)
             return
-
-    if message.guild:
-        return
 
 
     if message.attachments:
