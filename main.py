@@ -854,7 +854,7 @@ async def stats(interaction: discord.Interaction):
     app_commands.Choice(name='nightcore', value='nightcore'),
     app_commands.Chocie(name='bass_boost', value='bass_boost'),
     app_commands.Choice(name='cave', value='cave'),
-    app_command.Choice(name='earrape', value='earrape')
+    app_commands.Choice(name='earrape', value='earrape')
 ])
 async def effect(interaction: discord.Interaction, effect:app_commands.Choice[str]):
     if not await guild_only(interaction):
