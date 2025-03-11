@@ -72,7 +72,7 @@ def get_server_state(guild_id):
         server_states[guild_id] = ServerState()
     return server_states[guild_id]
 
-# generator = AudioGenerator()
+generator = AudioGenerator()
 
 async def guild_only(interaction: discord.Interaction) -> bool:
     if not interaction.guild:
@@ -794,45 +794,45 @@ async def delete_messages(interaction: discord.Interaction, count: int):
         logger.error(f"Error in delete_messages: {e}")
         await interaction.channel.send("An error occurred while deleting messages.", delete_after=10)
 
-# @tree.command(name='let_knur_cook', description='Let Knur speak or sing!')
-# @app_commands.choices(mode=[
-#     app_commands.Choice(name='speak', value='speak'),
-#     app_commands.Choice(name='sing', value='sing')
-# ])
-# async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Choice[str], text: str):
-#     await interaction.response.defer()
-#     try:
-#         filename = f"knur_{mode.value}.wav"
-#         if mode.value == 'speak':
-#             audio_path = generator.generate_speech(text, filename)
-#         else:
-#             audio_path = generator.generate_singing(text, filename)
-#
-#         if not audio_path:
-#             await interaction.followup.send("🐗 Something went wrong...")
-#             return
-#
-#         if interaction.guild and interaction.user.voice:
-#             guild = interaction.guild
-#             voice_channel = interaction.user.voice.channel
-#             if guild.voice_client is None:
-#                 voice_client = await voice_channel.connect()
-#             else:
-#                 voice_client = guild.voice_client
-#                 if not voice_client.is_playing():
-#                     voice_client.play(discord.FFmpegPCMAudio(audio_path))
-#                     voice_client.source = discord.PCMVolumeTransformer(voice_client.source)
-#                     voice_client.source.volume = 0.7
-#
-#         with open(audio_path, 'rb') as f:
-#             file = discord.File(f, filename=filename)
-#             await interaction.followup.send(
-#                 content=f"🐗 Knur is {mode.value}ing: {text}",
-#                 file=file
-#             )
-#     except Exception as e:
-#         logger.error(f"Error in let_knur_cook: {str(e)}")
-#         await interaction.followup.send("Knur can't cook right now... 🐗")
+@tree.command(name='let_knur_cook', description='Let Knur speak or sing!')
+@app_commands.choices(mode=[
+    app_commands.Choice(name='speak', value='speak'),
+    app_commands.Choice(name='sing', value='sing')
+])
+async def let_knur_cook(interaction: discord.Interaction, mode: app_commands.Choice[str], text: str):
+    await interaction.response.defer()
+    try:
+        filename = f"knur_{mode.value}.wav"
+        if mode.value == 'speak':
+            audio_path = generator.generate_speech(text, filename)
+        else:
+            audio_path = generator.generate_singing(text, filename)
+
+        if not audio_path:
+            await interaction.followup.send("🐗 Something went wrong...")
+            return
+
+        if interaction.guild and interaction.user.voice:
+            guild = interaction.guild
+            voice_channel = interaction.user.voice.channel
+            if guild.voice_client is None:
+                voice_client = await voice_channel.connect()
+            else:
+                voice_client = guild.voice_client
+                if not voice_client.is_playing():
+                    voice_client.play(discord.FFmpegPCMAudio(audio_path))
+                    voice_client.source = discord.PCMVolumeTransformer(voice_client.source)
+                    voice_client.source.volume = 0.7
+
+        with open(audio_path, 'rb') as f:
+            file = discord.File(f, filename=filename)
+            await interaction.followup.send(
+                content=f"🐗 Knur is {mode.value}ing: {text}",
+                file=file
+            )
+    except Exception as e:
+        logger.error(f"Error in let_knur_cook: {str(e)}")
+        await interaction.followup.send("Knur can't cook right now... 🐗")
 
 @tree.command(name='stats', description='Display server stats')
 async def stats(interaction: discord.Interaction):
@@ -848,5 +848,57 @@ async def stats(interaction: discord.Interaction):
         f"Created On: {created_at}\n"
     )
     await interaction.response.send_message(stats_message)
+
+@tree.command(name='effect', description='Add sound effect to current song')
+@app_commands.choices(effect=[
+    app_commands.Choice(name='nightcore', value='nightcore'),
+    app_commands.Chocie(name='bass_boost', value='bass_boost'),
+    app_commands.Choice(name='cave', value='cave')
+])
+async def effect(interaction: discord.Interaction, effect:app_commands.Choice[str]):
+    if not await guild_only(interaction):
+        return
+    
+    state = get_server_state(interaction.guild.id)
+    guild = interaction.guild.id
+    voice_client = discord.utils.get(client.voice_clients, guild=guild)
+
+    if voice_client is None or not voice_client.is_playing():
+        await interaction.resposne.send_message("Knur is not playing")
+        return
+
+    await interaction.response.defer()
+
+    try:
+        effect_file= f'audios/effect_{effect.value}.mp3'
+
+        ffmpeg_filters = {
+            'nightcore': '-af "asetrate=44100*1.25,aresample=44100,atempo=1.06"',
+            'bass_boost': '-af "bass=g=10,dynaudnorm"',
+            'cave': '-af "aecho=0.8:0.9:1000|1800:0.3|0.25"'
+        }
+
+        current_audio = 'audios/temp.audi.mp3'
+        filter_cc = ffmpeg_filters[effect.value]
+
+        os.system(f'ffmpeg -y -i {current_audio} {filter_cc} {effect_file}')
+
+        voice_client.stop()
+
+        voice_client.play(
+            discord.FFmpegAudio(effect_file),
+            after=lambda e: client.loop.create_task(_play_next(interaction, True))
+        )
+
+        voice_client.source = discord.PCMVolumeTranformer(voice_client.source)
+        voice_client.source.volume = 0.5
+
+        await interaction.followup.send(f'Applied {effect.value} effect to the current song...')
+
+    except Exception as e:
+        logger.error(f"Error applying effect: {e}")
+        await interaction.followup.send("An error occured")
+
+
 
 client.run(TOKEN)
