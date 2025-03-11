@@ -853,7 +853,8 @@ async def stats(interaction: discord.Interaction):
 @app_commands.choices(effect=[
     app_commands.Choice(name='nightcore', value='nightcore'),
     app_commands.Chocie(name='bass_boost', value='bass_boost'),
-    app_commands.Choice(name='cave', value='cave')
+    app_commands.Choice(name='cave', value='cave'),
+    app_command.Choice(name='earrape', value='earrape')
 ])
 async def effect(interaction: discord.Interaction, effect:app_commands.Choice[str]):
     if not await guild_only(interaction):
@@ -875,7 +876,8 @@ async def effect(interaction: discord.Interaction, effect:app_commands.Choice[st
         ffmpeg_filters = {
             'nightcore': '-af "asetrate=44100*1.25,aresample=44100,atempo=1.06"',
             'bass_boost': '-af "bass=g=10,dynaudnorm"',
-            'cave': '-af "aecho=0.8:0.9:1000|1800:0.3|0.25"'
+            'cave': '-af "aecho=0.8:0.9:1000|1800:0.3|0.25"',
+            'ear_rape': '-af bass=g=20,volume=10'
         }
 
         current_audio = 'audios/temp.audi.mp3'
